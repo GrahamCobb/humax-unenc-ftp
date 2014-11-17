@@ -1,0 +1,110 @@
+#!/usr/bin/perl
+# Copyright (C) 2014 Graham R. Cobb
+# Released under GPL V2 -- see LICENSE
+
+use strict;
+use warnings;
+
+use Fcntl qw(SEEK_SET SEEK_CUR SEEK_END);
+use Net::FTP;
+
+my $host = "humax";
+my $toplevel = "My Video/Test";
+my $debugFTP = 0;
+my $ftpUser = "humaxftp";
+my $ftpPassword = "0000";
+
+sub walkFtpTree {
+    my ($dir) = @_;
+
+    my $olddir = $ftp->pwd;
+
+#
+# Humax FTP does not support NLIST, so we can't use $ftp->ls()
+# We have to use $ftp->dir and parse the output.
+# In this case, it is a /bin/ls -l directory listing, with lines like...
+#drwxr-xr-x   4 root root 4096 Nov 16 22:46 My Video
+#
+    $ftp->cwd("$dir")
+	or die "Cannot change working directory ", $ftp->message;
+    my $newdir = $ftp->pwd;
+
+    foreach my $line ($ftp->dir) {
+	# Parse the unix-style DIR output the humax returns...
+	$line =~ /^(.)([^\s]+)\s*(\d*)\s*([^\s]*)\s*([^\s]*)\s*(\d*)\s*(\w*\s*\d*\s*[\d:.]*)\s*(.*)$/ 
+	    or die "Cannot parse output from FTP DIR: ",$line;
+
+	my $type = $1;
+	my $file = $8;
+
+	if ($type eq "d") {
+	    walkFtpTree($file) if ($file ne "." && $file ne "..");
+	    next;
+	}
+
+	if ($type eq "-") {
+	    # print "File found: $newdir/$file\n";
+	    handleFile($newdir, $file);
+	    next;
+	}
+
+	print "Ignoring file $newdir/$file: type $type\n";
+    }
+
+    $ftp->cwd("$olddir")
+	or die "Cannot change working directory ", $ftp->message;
+}
+
+sub handleFile {
+    my ($dir, $file) = @_;
+
+    handleHmt(@_) if $file =~ /\.hmt$/;
+}
+
+sub handleHmt {
+    my ($dir, $file) = @_;
+    my $hmt;
+    use constant ENC_OFFSET => 0x3dc;
+    use constant ENC_FLAG => 0x04;
+
+    # Read file into a local variable to do byte manipulation
+    open my $fh, '+>', \$hmt;
+    $ftp->binary
+	or die "Cannot select binary mode: ", $ftp->message;
+    $ftp->get("$file", $fh)
+	or die "Cannot fetch .hmt file: ", $ftp->message;
+
+    my $enc = vec($hmt, ENC_OFFSET, 8) != ENC_FLAG;
+    # printf "File %s/%s: %d bytes read. Byte %x = %x (%s)\n", $dir, $file, length($hmt), ENC_OFFSET, vec($hmt, ENC_OFFSET, 8), ($enc ? "Enc" : "not Enc");
+
+    if ($enc) {
+	# Clear the Enc status
+	vec($hmt, ENC_OFFSET, 8) = ENC_FLAG;
+
+	seek($fh, 0, SEEK_SET);
+	# Backup .hmt file
+	$ftp->delete("$file.bck"); # Ignore error
+	$ftp->rename("$file", "$file.bck")
+	    or die "Cannot rename .hmt file: ", $ftp->message;
+	$ftp->binary
+	    or die "Cannot select binary mode: ", $ftp->message;
+	# Rewrite .hmt file
+	$ftp->put($fh, "$file")
+	    or die "Cannot rewrite .hmt file: ", $ftp->message;
+
+	print "$dir/$file set to be not Enc\n";
+    }
+    
+    close $fh;
+}
+
+# Humax FTP does not support passive mode
+my $ftp = Net::FTP->new($host,
+			Debug => $debugFTP,
+			Passive => 0)
+      or die "Cannot connect to $host: $@";
+
+$ftp->login($ftpUser,$ftpPassword)
+      or die "Cannot login: ", $ftp->message;
+
+walkFtpTree($toplevel);
