@@ -16,7 +16,7 @@ to serve them over DLNA or copy them to USB disks.
 The script looks through all the files below a certain point in the FTP tree, looking for
 `.hmt` files.  Each time it finds one, it reads the file to check if it is marked as ENC.
 
-If so, it backs up the `.hmt` file (to `.hmt.bck`) and rewrites the .hmt flag with the ENC
+If so, it backs up the `.hmt` file (to `.hmt.bck`) and rewrites the `.hmt` flag with the ENC
 flag clear.  Then it continues searching for `.hmt` files.
 
 ## Effect on encryption
@@ -58,7 +58,7 @@ it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or
 (at your option) any later version.
 
-`backup-humax` is distributed in the hope that it will be useful,
+`humax-unenc-ftp` is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
