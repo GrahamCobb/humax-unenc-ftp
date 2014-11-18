@@ -7,6 +7,7 @@ use warnings;
 
 use Fcntl qw(SEEK_SET SEEK_CUR SEEK_END);
 use Net::FTP;
+use File::Basename;
 
 my $host = "humax";
 my $toplevel = "My Video/Test";
@@ -14,10 +15,18 @@ my $debugFTP = 0;
 my $ftpUser = "humaxftp";
 my $ftpPassword = "0000";
 
-sub walkFtpTree {
-    my ($dir) = @_;
+my $ftp;
 
-    my $olddir = $ftp->pwd;
+# Return list of files in FTP current working directory
+# Does not include . or ..
+#
+# dirFtp [<type> [<regex>]]
+#
+# <type> is ls-style file type (normally "-" or "d")
+# <regex> is a regex for the file name to match (e.g. qr/\.txt$/)
+sub dirFtp {
+    my ($type, $regex) = @_;
+    my @result = ();
 
 #
 # Humax FTP does not support NLIST, so we can't use $ftp->ls()
@@ -25,40 +34,42 @@ sub walkFtpTree {
 # In this case, it is a /bin/ls -l directory listing, with lines like...
 #drwxr-xr-x   4 root root 4096 Nov 16 22:46 My Video
 #
-    $ftp->cwd("$dir")
-	or die "Cannot change working directory ", $ftp->message;
-    my $newdir = $ftp->pwd;
-
     foreach my $line ($ftp->dir) {
 	# Parse the unix-style DIR output the humax returns...
 	$line =~ /^(.)([^\s]+)\s*(\d*)\s*([^\s]*)\s*([^\s]*)\s*(\d*)\s*(\w*\s*\d*\s*[\d:.]*)\s*(.*)$/ 
 	    or die "Cannot parse output from FTP DIR: ",$line;
 
-	my $type = $1;
+	my $filetype = $1;
 	my $file = $8;
+	next if ($type && $filetype ne $type);
+	next if ($file eq "." || $file eq "..");
+	next if ($regex && $file !~ $regex); # Note side-effect: $1-$8 redefined due to regex match
 
-	if ($type eq "d") {
-	    walkFtpTree($file) if ($file ne "." && $file ne "..");
-	    next;
-	}
-
-	if ($type eq "-") {
-	    # print "File found: $newdir/$file\n";
-	    handleFile($newdir, $file);
-	    next;
-	}
-
-	print "Ignoring file $newdir/$file: type $type\n";
+	push (@result, $file);
     }
+
+    return @result;
+}
+
+sub walkFtpTree {
+    my ($dir) = @_;
+
+    my $olddir = $ftp->pwd;
+
+    $ftp->cwd("$dir")
+	or die "Cannot change working directory ", $ftp->message;
+    my $newdir = $ftp->pwd;
+
+    foreach (dirFtp("-", qr/\.hmt$/)) {
+	# print "File found: $newdir/$_\n";
+	handleHmt($newdir, $_);
+    }
+
+    # Recurse directories
+    foreach (dirFtp("d")) {walkFtpTree($_);}
 
     $ftp->cwd("$olddir")
 	or die "Cannot change working directory ", $ftp->message;
-}
-
-sub handleFile {
-    my ($dir, $file) = @_;
-
-    handleHmt(@_) if $file =~ /\.hmt$/;
 }
 
 sub handleHmt {
@@ -66,6 +77,9 @@ sub handleHmt {
     my $hmt;
     use constant ENC_OFFSET => 0x3dc;
     use constant ENC_FLAG => 0x04;
+
+    $ftp->cwd("$dir")
+	or die "Cannot change working directory ", $ftp->message;
 
     # Read file into a local variable to do byte manipulation
     open my $fh, '+>', \$hmt;
@@ -93,13 +107,34 @@ sub handleHmt {
 	    or die "Cannot rewrite .hmt file: ", $ftp->message;
 
 	print "$dir/$file set to be not Enc\n";
+
+	renameMediaFiles($dir, $file);
     }
     
     close $fh;
 }
 
+sub renameMediaFiles {
+    my ($dir, $name) = @_;
+
+    $ftp->cwd("$dir")
+	or die "Cannot change working directory ", $ftp->message;
+
+    # Get basename for existing files
+    my ($basename) = fileparse($name, qr/\..*$/);
+    #print "name = $name; basename = $basename\n";
+
+    foreach my $file (dirFtp("-", "^$basename\\.")) {
+	my (undef, undef, $suffix) = fileparse($file, qr/\..*$/);
+	print "Rename $basename$suffix to $basename $suffix\n";
+	$ftp->rename("$basename$suffix", "$basename $suffix")
+	    or die "Cannot rename $basename$suffix: ", $ftp->message;
+    }
+
+}
+
 # Humax FTP does not support passive mode
-my $ftp = Net::FTP->new($host,
+$ftp = Net::FTP->new($host,
 			Debug => $debugFTP,
 			Passive => 0)
       or die "Cannot connect to $host: $@";

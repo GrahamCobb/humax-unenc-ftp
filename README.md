@@ -33,7 +33,17 @@ the ENC flag.
 
 ## Effect on DLNA server
 
-???
+The DLNA player does not serve recordings marked as ENC.  Even if the flag is later cleared,
+the recording is not served.
+
+However, if the recording file (and associated files) names are changed in some way, the media 
+player will eventually rebuild its index and serve the recording. It is not clear exactly
+what triggers the rebuild but it seems to happen after about a day (although it may also
+require resuming from standby and/or making new recordings).  More information on this would
+be welcomed.
+
+For this reason, the script allows for renaming the recording files (it just adds a space
+at the end).  This does not change the name in the Media listing.
 
 ## Effect on copying programmes to USB disks
 
