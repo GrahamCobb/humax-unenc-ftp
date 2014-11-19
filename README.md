@@ -17,7 +17,8 @@ The script looks through all the files below a certain point in the FTP tree, lo
 `.hmt` files.  Each time it finds one, it reads the file to check if it is marked as ENC.
 
 If so, it backs up the `.hmt` file (to `.hmt.bck`) and rewrites the `.hmt` flag with the ENC
-flag clear.  Then it continues searching for `.hmt` files.
+flag clear.  It also renames all the files associated with the recording (to add a space at
+the end) to trigger a DLNA media server update.
 
 ## Effect on encryption
 
@@ -31,23 +32,23 @@ Clearing the `ENC` flag may mean the Humax will be willing to decrypt files in m
 As soon as the file has been rewritten, the Humax Media display shows the programmes without
 the ENC flag.
 
-## Effect on DLNA server
+## Effect on DLNA media server
 
-The DLNA player does not serve recordings marked as ENC.  Even if the flag is later cleared,
-the recording is not served.
+The DLNA media server does not serve recordings marked as ENC.  Even if the flag is later
+cleared, the recording is not served.
 
 However, if the recording file (and associated files) names are changed in some way, the media 
-player will eventually rebuild its index and serve the recording. It is not clear exactly
-what triggers the rebuild but it seems to happen after about a day (although it may also
-require resuming from standby and/or making new recordings).  More information on this would
-be welcomed.
+server will eventually rebuild its index and serve the recording (which can be played on a DLNA
+media player). It is not clear exactly what triggers the rebuild but it seems to happen overnight
+(although it may also require going into and out of standby).  More testing on this would be
+welcomed.
 
-For this reason, the script allows for renaming the recording files (it just adds a space
-at the end).  This does not change the name in the Media listing.
+For this reason, the script renames the recording files (it just adds a space at the end).
+This does not change the name in the Media listing.
 
 ## Effect on copying programmes to USB disks
 
-???
+??? Please let me know if you have tried this.
 
 ## Requirements
 
