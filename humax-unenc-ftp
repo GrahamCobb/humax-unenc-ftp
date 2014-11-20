@@ -5,17 +5,129 @@
 use strict;
 use warnings;
 
+use Getopt::Long 2.33 qw(:config gnu_getopt auto_help auto_version);
+use Pod::Usage;
 use Fcntl qw(SEEK_SET SEEK_CUR SEEK_END);
 use Net::FTP;
 use File::Basename;
 
-my $host = "humax";
-my $toplevel = "My Video/Test";
-my $debugFTP = 0;
+our $VERSION = 0.1;
+
+#
+# Configuration data
+#
 my $ftpUser = "humaxftp";
 my $ftpPassword = "0000";
+my $verbosity = 1;
+my $man = 0;
+my $rename = 0;
 
 my $ftp;
+
+#
+# Logging
+#
+sub msgError
+{
+    print @_,"\n";
+}
+sub msgInfo
+{
+    print @_,"\n" if $verbosity >= 1;
+}
+sub msgProgress
+{
+    print @_,"\n" if $verbosity >= 2;
+}
+sub msgDebug
+{
+    print @_,"\n" if $verbosity >= 3;
+}
+
+#
+# Option processing
+#
+#Getopt::Long::Configure ("bundling");
+GetOptions(
+           "rename|r" => \$rename,
+	   "password|p=s" => \$ftpPassword,
+	   "user|u=s" => \$ftpUser,
+	   "verbose|v:+" => \$verbosity,
+	   "man" => \$man,
+	   ) or pod2usage(2);
+msgDebug "man = $man";
+if ($man) {
+    pod2usage(-verbose => 2);
+    exit;
+}
+
+my ($host, @toplevel) = @ARGV;
+
+if (! $host) {
+    msgError "Humax server address must be specified";
+    pod2usage(2);
+};
+
+$toplevel[0] = "My Video/Test" unless @toplevel;
+
+my $debugFTP = $verbosity > 3;
+
+msgDebug "verbosity = $verbosity";
+msgDebug "ftpUser = $ftpUser";
+msgDebug "ftpPassword = $ftpPassword";
+msgDebug "host = $host";
+msgDebug "toplevel = " . join(",", @toplevel);
+msgDebug "debugFTP = $debugFTP";
+msgDebug "rename = $rename";
+
+=head1 NAME
+
+humax-unenc-ftp - Remove ENC flag from Humax recordings remotely
+
+=head1 SYNOPSIS
+
+humax-unenc-ftp [options] <address> [<directory> ...]
+
+humax-unenc-ftp -?|--help|--man|--version
+
+ Commands:
+
+  -?, --help			brief help message
+  --man 			full documentation
+  --version			script version
+
+ Options:
+
+  -r, --rename          Rename files after removing flag
+  -p, --password=<pass> Specify FTP password (default 0000)
+  -u, --user=<user>     Specify FTP username (default humaxftp)
+  -v, --verbose[=N]	Increment or set verbosity level (0 - quiet, 1 - info, 2 - progress, 3 - debug, 4 - debug FTP)
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--help>
+
+Print a brief help message and exits.
+
+=item B<--man>
+
+Prints the manual page and exits.
+
+=back
+
+=head1 DESCRIPTION
+
+B<humax-unenc-ftp> uses FTP to look through all the Humax recordings and clear the
+ENC flag.
+
+B<address> specifies the hostname or IP address of the Humax.
+
+B<directory> specifies the directories to search (note that sub-directories
+are also searched).  If no directories are specified, the default is "My Video".
+
+=cut
 
 # Return list of files in FTP current working directory
 # Does not include . or ..
@@ -57,11 +169,11 @@ sub walkFtpTree {
     my $olddir = $ftp->pwd;
 
     $ftp->cwd("$dir")
-	or die "Cannot change working directory ", $ftp->message;
+	or die "Cannot change working directory to $dir: ", $ftp->message;
     my $newdir = $ftp->pwd;
 
     foreach (dirFtp("-", qr/\.hmt$/)) {
-	# print "File found: $newdir/$_\n";
+	msgDebug "File found: $newdir/$_";
 	handleHmt($newdir, $_);
     }
 
@@ -69,7 +181,7 @@ sub walkFtpTree {
     foreach (dirFtp("d")) {walkFtpTree($_);}
 
     $ftp->cwd("$olddir")
-	or die "Cannot change working directory ", $ftp->message;
+	or die "Cannot change working directory to $olddir: ", $ftp->message;
 }
 
 sub handleHmt {
@@ -79,7 +191,7 @@ sub handleHmt {
     use constant ENC_FLAG => 0x04;
 
     $ftp->cwd("$dir")
-	or die "Cannot change working directory ", $ftp->message;
+	or die "Cannot change working directory to $dir: ", $ftp->message;
 
     # Read file into a local variable to do byte manipulation
     open my $fh, '+>', \$hmt;
@@ -89,7 +201,7 @@ sub handleHmt {
 	or die "Cannot fetch .hmt file: ", $ftp->message;
 
     my $enc = vec($hmt, ENC_OFFSET, 8) != ENC_FLAG;
-    # printf "File %s/%s: %d bytes read. Byte %x = %x (%s)\n", $dir, $file, length($hmt), ENC_OFFSET, vec($hmt, ENC_OFFSET, 8), ($enc ? "Enc" : "not Enc");
+    msgDebug sprintf "File %s/%s: %d bytes read. Byte %x = %x (%s)", $dir, $file, length($hmt), ENC_OFFSET, vec($hmt, ENC_OFFSET, 8), ($enc ? "Enc" : "not Enc");
 
     if ($enc) {
 	# Clear the Enc status
@@ -106,9 +218,10 @@ sub handleHmt {
 	$ftp->put($fh, "$file")
 	    or die "Cannot rewrite .hmt file: ", $ftp->message;
 
-	print "$dir/$file set to be not Enc\n";
+	msgInfo "$dir/$file set to be not Enc";
 
-	renameMediaFiles($dir, $file);
+	# Optionally rename, to trigger DLNA update
+	renameMediaFiles($dir, $file) if $rename;
     }
     
     close $fh;
@@ -121,13 +234,13 @@ sub renameMediaFiles {
 	or die "Cannot change working directory ", $ftp->message;
 
     # Get basename for existing files
-    my ($basename) = fileparse($name, qr/\..*$/);
-    #print "name = $name; basename = $basename\n";
+    my ($basename, undef, undef) = fileparse($name, qr/\..*$/);
+    msgDebug "name = $name; basename = $basename";
 
     foreach my $file (dirFtp("-", "^$basename\\.")) {
 	my (undef, undef, $suffix) = fileparse($file, qr/\..*$/);
-	print "Rename $basename$suffix to $basename $suffix\n";
-	$ftp->rename("$basename$suffix", "$basename $suffix")
+	msgInfo "Rename $basename$suffix to $basename-$suffix";
+	$ftp->rename("$basename$suffix", "$basename-$suffix")
 	    or die "Cannot rename $basename$suffix: ", $ftp->message;
     }
 
@@ -142,4 +255,4 @@ $ftp = Net::FTP->new($host,
 $ftp->login($ftpUser,$ftpPassword)
       or die "Cannot login: ", $ftp->message;
 
-walkFtpTree($toplevel);
+foreach (@toplevel) {walkFtpTree($_);}

@@ -2,49 +2,77 @@
 
 Remove ENC flag from Humax recordings remotely, using FTP access.
 
-This script uses FTP to look through all the Humax recordings and clear the ENC flag.
+This script uses FTP to look through all the Humax recordings and clear the ENC
+flag.
 
-Note, there is a well known program called `Foxy` that clears the ENC flag on local
-files.  This script is not related to that program but does the same job for recordings
-on the Humax itself.
+Note, there is a well known program called `Foxy` that clears the ENC flag on
+local files.  This script is not related to that program but does the same job
+for recordings on the Humax itself.
 
-This is useful on the HDR-2000T, which sets the ENC flag on all HD recordings and then refuses
-to serve them over DLNA or copy them to USB disks.
+This is useful on the HDR-2000T, which sets the ENC flag on all HD recordings
+and then refuses to serve them over DLNA or copy them to USB disks.
+
+## Usage
+```
+    humax-unenc-ftp [options] <address> [<directory> ...]
+
+    humax-unenc-ftp -?|--help|--man|--version
+
+     Commands:
+
+      -?, --help                    brief help message
+      --man                         full documentation
+      --version                     script version
+
+     Options:
+
+      -r, --rename          Rename files after removing flag
+      -p, --password=<pass> Specify FTP password (default 0000)
+      -u, --user=<user>     Specify FTP username (default humaxftp)
+      -v, --verbose[=N]     Increment or set verbosity level (0 - quiet, 1 - info, 2 - progress, 3 - debug, 4 - debug FTP)
+```
 
 ## Detailed operation
 
-The script looks through all the files below a certain point in the FTP tree, looking for
-`.hmt` files.  Each time it finds one, it reads the file to check if it is marked as ENC.
+The script looks through all the files below a certain point in the FTP tree,
+looking for `.hmt` files.  Each time it finds one, it reads the file to check
+if it is marked as ENC.
 
-If so, it backs up the `.hmt` file (to `.hmt.bck`) and rewrites the `.hmt` flag with the ENC
-flag clear.  It also renames all the files associated with the recording (to add a space at
-the end) to trigger a DLNA media server update.
+If so, it backs up the `.hmt` file (to `.hmt.bck`) and rewrites the `.hmt` flag
+with the ENC flag clear.
+
+After updating the flag, the script optionally renames all the files associated
+with the recording (to add a hyphen at the end) to trigger a DLNA media server
+update.  This feature is considered experimental as it can cause some problems
+if the files are in use (recording, playback, or suspended playback).
 
 ## Effect on encryption
 
-This has no effect on encryption: the files on disk (and available via FTP) are still encrypted.
-This only affects the Humax `ENC` flag associated with the programme.
+This has no effect on encryption: the files on disk (and available via FTP) are
+still encrypted. This only affects the Humax `ENC` flag associated with the
+programme.
 
-Clearing the `ENC` flag may mean the Humax will be willing to decrypt files in more cases.
+Clearing the `ENC` flag may mean the Humax will be willing to decrypt files in
+more cases.
 
 ## Effect on Media listing
 
-As soon as the file has been rewritten, the Humax Media display shows the programmes without
-the ENC flag.
+As soon as the file has been rewritten, the Humax Media display shows the
+programmes without the ENC flag.
 
 ## Effect on DLNA media server
 
-The DLNA media server does not serve recordings marked as ENC.  Even if the flag is later
-cleared, the recording is not served.
+The DLNA media server does not serve recordings marked as ENC.  Even if the flag
+is later cleared, the recording is not served.
 
-However, if the recording file (and associated files) names are changed in some way, the media 
-server will eventually rebuild its index and serve the recording (which can be played on a DLNA
-media player). It is not clear exactly what triggers the rebuild but it seems to happen overnight
-(although it may also require going into and out of standby).  More testing on this would be
-welcomed.
+However, if the recording file (and associated files) names are changed in some
+way, the media server will eventually rebuild its index and serve the recording
+(which can be played on a DLNA media player). It is not clear exactly what
+triggers the rebuild but it seems to happen overnight (although it may also
+require going into and out of standby).  More testing on this would be welcomed.
 
-For this reason, the script renames the recording files (it just adds a space at the end).
-This does not change the name in the Media listing.
+The optional file renaming feature is designed to trigger this update. This
+does not change the name in the Media listing but can cause some small problems.
 
 ## Effect on copying programmes to USB disks
 
@@ -62,7 +90,8 @@ when it is on.
 
 ## Notices
 Copyright (c) 2014 Graham R. Cobb.
-This software is distributed under the GPL (see the copyright notices and the LICENSE file).
+This software is distributed under the GPL (see the copyright notices and the
+LICENSE file).
 
 `humax-unenc-ftp` is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -75,6 +104,6 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 **IMPORTANT NOTES:** Humax is a trademark of Humax Co. Ltd.
-This page and software is not created, endorsed, reviewed, approved or in any other
-way associated with Humax Co. Ltd.
+This page and software is not created, endorsed, reviewed, approved or in any
+other way associated with Humax Co. Ltd.
 
