@@ -2,6 +2,10 @@
 
 Remove ENC flag from Humax recordings remotely, using FTP access.
 
+There are two tools: `humax-unenc-ftp` and `hmt2k`.
+
+# humax-unenc-ftp
+
 This script uses FTP to look through all the Humax recordings and clear the ENC
 flag.
 
@@ -91,16 +95,18 @@ when it is on.
 
 3. FTP must be enabled on the Humax.
 
-# hmt
+# hmt2k
 
 Decode content of a `.hmt` file.
 
 This is an open source re-implementation of Raydon's `hmt` program, to
-display the content of a .hmt file locally or on the Humax.
+display the content of a .hmt file locally or on the Humax. Although
+created for HMT-2000 users, I believe it should also work with other
+models.
 
 ## Usage
 ```
-    hmt <file> | <url> ...
+    hmt2k <file> | <url> ...
 
 ```
 
@@ -127,12 +133,12 @@ Copyright (c) 2014, 2015 Graham R. Cobb.
 This software is distributed under the GPL (see the copyright notices and the
 LICENSE file).
 
-`humax-unenc-ftp` and `hmt` are free software; you can redistribute them
+`humax-unenc-ftp` and `hmt2k` are free software; you can redistribute them
 and/or modify them under the terms of the GNU General Public License as
 published by the Free Software Foundation; either version 2 of the License,
 or (at your option) any later version.
 
-`humax-unenc-ftp` and `hmt` are distributed in the hope that they will be
+`humax-unenc-ftp` and `hmt2k` are distributed in the hope that they will be
 useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
