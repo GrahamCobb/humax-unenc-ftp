@@ -128,6 +128,8 @@ I would particularly like suggestions on why some strings (for example
 `Schedule information`) in some files are prefixed with the characters
 `i7` but in other files they are not.
 
+My latest understanding of the formats can be found in my Github [Gist](https://gist.github.com/GrahamCobb/0e8c854eb75e5b00f353).
+
 # Notices
 Copyright (c) 2014, 2015 Graham R. Cobb.
 This software is distributed under the GPL (see the copyright notices and the
