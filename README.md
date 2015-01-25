@@ -101,7 +101,7 @@ Decode content of a `.hmt` file.
 
 This is an open source re-implementation of Raydon's `hmt` program, to
 display the content of a .hmt file locally or on the Humax. Although
-created for HMT-2000 users, I believe it should also work with other
+created for HDR-2000T users, I believe it should also work with other
 models.
 
 ## Usage
