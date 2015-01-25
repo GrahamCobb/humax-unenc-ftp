@@ -178,7 +178,7 @@ my %enums = (
     },
     guidanceMedia => {
 	0x00ff => "Guidance off",
-	0x0100 => "General guidance on", # But still suitable for pre-watershed - from af123
+	0x0001 => "General guidance on", # But still suitable for pre-watershed - from af123
 	0x0101 => "Guidance on",
 	0xff00 => "Guidance on", # != raydon
     },
