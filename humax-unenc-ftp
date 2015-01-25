@@ -11,7 +11,7 @@ use Fcntl qw(SEEK_SET SEEK_CUR SEEK_END);
 use Net::FTP;
 use File::Basename;
 
-our $VERSION = 0.1;
+our $VERSION = 0.2;
 
 #
 # Configuration data
@@ -21,6 +21,7 @@ my $ftpPassword = "0000";
 my $verbosity = 1;
 my $man = 0;
 my $rename = 0;
+my $dryRun = 0;
 
 my $ftp;
 
@@ -49,6 +50,7 @@ sub msgDebug
 #
 #Getopt::Long::Configure ("bundling");
 GetOptions(
+           "dry-run|n" => \$dryRun,
            "rename|r" => \$rename,
 	   "password|p=s" => \$ftpPassword,
 	   "user|u=s" => \$ftpUser,
@@ -79,6 +81,7 @@ msgDebug "host = $host";
 msgDebug "toplevel = " . join(",", @toplevel);
 msgDebug "debugFTP = $debugFTP";
 msgDebug "rename = $rename";
+msgDebug "dryRun = $dryRun";
 
 =head1 NAME
 
@@ -98,6 +101,7 @@ humax-unenc-ftp -?|--help|--man|--version
 
  Options:
 
+  -n, --dry-run		Dry run only: do not modify files
   -r, --rename          Rename files after removing flag
   -p, --password=<pass> Specify FTP password (default 0000)
   -u, --user=<user>     Specify FTP username (default humaxftp)
@@ -189,6 +193,7 @@ sub handleHmt {
     my $hmt;
     use constant ENC_OFFSET => 0x3dc;
     use constant ENC_FLAG => 0x04;
+    use constant REC_END_OFFSET => 0x284;
 
     $ftp->cwd("$dir")
 	or die "Cannot change working directory to $dir: ", $ftp->message;
@@ -200,6 +205,15 @@ sub handleHmt {
     $ftp->get("$file", $fh)
 	or die "Cannot fetch .hmt file: ", $ftp->message;
 
+    # Do not manipulate while recording is in progress or finished less than 1 minute ago
+    my $rec_end_time = unpack("@".REC_END_OFFSET."V", $hmt);
+    msgDebug "rec_end_time = $rec_end_time, now = ".time();
+    if (time() < $rec_end_time + 60) {
+	close $fh;
+	msgInfo "Skipping $dir/$file as recording in progress";
+	return;
+    }
+
     my $enc = vec($hmt, ENC_OFFSET, 8) != ENC_FLAG;
     msgDebug sprintf "File %s/%s: %d bytes read. Byte %x = %x (%s)", $dir, $file, length($hmt), ENC_OFFSET, vec($hmt, ENC_OFFSET, 8), ($enc ? "Enc" : "not Enc");
 
@@ -208,17 +222,22 @@ sub handleHmt {
 	vec($hmt, ENC_OFFSET, 8) = ENC_FLAG;
 
 	seek($fh, 0, SEEK_SET);
-	# Backup .hmt file
-	$ftp->delete("$file.bck"); # Ignore error
-	$ftp->rename("$file", "$file.bck")
-	    or die "Cannot rename .hmt file: ", $ftp->message;
-	$ftp->binary
-	    or die "Cannot select binary mode: ", $ftp->message;
-	# Rewrite .hmt file
-	$ftp->put($fh, "$file")
-	    or die "Cannot rewrite .hmt file: ", $ftp->message;
 
-	msgInfo "$dir/$file set to be not Enc";
+	if ($dryRun) {
+	    msgInfo "$dir/$file would be set to be not Enc if this was not a dry-run";
+	} else {
+	    # Backup .hmt file
+	    $ftp->delete("$file.bck"); # Ignore error
+	    $ftp->rename("$file", "$file.bck")
+		or die "Cannot rename .hmt file: ", $ftp->message;
+	    $ftp->binary
+		or die "Cannot select binary mode: ", $ftp->message;
+	    # Rewrite .hmt file
+	    $ftp->put($fh, "$file")
+		or die "Cannot rewrite .hmt file: ", $ftp->message;
+
+	    msgInfo "$dir/$file set to be not Enc";
+	}
 
 	# Optionally rename, to trigger DLNA update
 	renameMediaFiles($dir, $file) if $rename;
@@ -239,9 +258,14 @@ sub renameMediaFiles {
 
     foreach my $file (dirFtp("-", "^$basename\\.")) {
 	my (undef, undef, $suffix) = fileparse($file, qr/\..*$/);
-	msgInfo "Rename $basename$suffix to $basename-$suffix";
-	$ftp->rename("$basename$suffix", "$basename-$suffix")
-	    or die "Cannot rename $basename$suffix: ", $ftp->message;
+
+	if ($dryRun) {
+	    msgInfo "If this was not a dry-run: Rename $basename$suffix to $basename-$suffix";
+	} else {
+	    msgInfo "Rename $basename$suffix to $basename-$suffix";
+	    $ftp->rename("$basename$suffix", "$basename-$suffix")
+		or die "Cannot rename $basename$suffix: ", $ftp->message;
+	}
     }
 
 }
