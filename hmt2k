@@ -42,6 +42,7 @@ sub msgDebug
 # Mostly from raydon's published tables
 my @decodeTemplate = (
     0, '%16v64', "mustBe0117",
+    # This block is updated (rewritten) whenever playback completes
     0x0080, 'Z254', "filePath",
     0x017F, 'C', "v1FileNameByte",
     0x0180, 'Z*', "fileName",
@@ -89,6 +90,7 @@ my @decodeTemplate = (
     0x0394, 'V', "bookmark31",
     0x0398, 'V', "bookmark32",
     0x039C, '%32L16', undef,
+    # From here seems to be info about the content, presumably taken from the program guide
     0x03DC, 'b8', "flags3",
     0x03E0, 'v', "guidanceMedia",
     0x03E2, 'C', "guidanceMediaHeader",
@@ -200,6 +202,7 @@ my %enums = (
 	0x40 => "Sport",
 	0x50 => "Childrens",
 	0x60 => "Education",
+	0x80 => "Documentary", # Displays on the Humax as News and Factual (!= raydon)
 	0xA0 => "Lifestyle",
 	0xF0 => "Drama",
     },
@@ -278,6 +281,10 @@ sub hmtDecode {
     $hash->{v1} = ($hash->{v1FileNameByte} != 0);
     $hash->{fileName} = $hash->{v1FileNameByte} . $hash->{fileName} if $hash->{v1};
 
+    # Check recordingFailed flag consistent with failureReason
+    msgError sprintf "Flag recordingFailed(0x028E/0x04) = %d, field failureReason(0x0290) = %s -- these are inconsistent", $hash->{recordingFailed}, $hash->{failureReason}
+      if ($hash->{recordingFailed} && $hash->{failureReason} eq "OK") || ($hash->{failureReason} ne "OK" && !$hash->{recordingFailed});
+
     # Video PID appears twice, check they are the same
     msgError sprintf "Field videoPID(0x0490) = %d, videoPID2(0x0494) = %d -- they should be the same", $hash->{videoPID}, $hash->{videoPID2} if $hash->{videoPID} != $hash->{videoPID2};
 
@@ -304,17 +311,17 @@ sub hmtFormat {
     my ($hash) = @_;
     my $output = "";
 
+    $output .= "Information about the recording...\n";
     $output .= sprintf "HMT file for %s in folder %s.\n", $hash->{fileName}, $hash->{filePath};
     $output .= sprintf "%s recorded %s - %s (%d seconds). Status: %s\n", $hash->{programName}, 
                 scalar localtime($hash->{recordingStart}), scalar localtime($hash->{recordingEnd}), $hash->{recordingLen}, $hash->{recordingStatus};
     $output .= "Recording is locked. " if $hash->{locked};
     $output .= "Recording is new. " unless $hash->{notNew};
+    $output .= "Recording has been viewed. " if $hash->{notNew};
     $output .= "Recording is encrypted on disk. " if $hash->{onDiskEncrypted};
     $output .= "Recording has thumbnail. " if $hash->{thumbnail};
     $output .= sprintf "Recording failed: %s. ", $hash->{failureReason} if $hash->{recordingFailed};
     $output .= "Recording has been automatically deleted. " if $hash->{autoDeleted};
-    $output .= "Recording must be kept encrypted. " if $hash->{keepEncrypted};
-    $output .= sprintf "Recording may be copied %d times. ", $hash->{numCopiesAllowed} if $hash->{copyAllowed};
     $output .= "\n";
     $output .= sprintf "Playback was suspended after %d seconds.\n", $hash->{playedTime} if $hash->{playedTime};
     if ($hash->{bookmarks} > 0) {
@@ -324,12 +331,17 @@ sub hmtFormat {
 	}
 	$output .= "\n";
     }
+    $output .= "\nInformation about the content...\n";
+    $output .= "Content must be kept encrypted. " if $hash->{keepEncrypted};
+    $output .= "Content may not be copied." unless $hash->{copyAllowed};
+    $output .= sprintf "Content may be copied %d times. ", $hash->{numCopiesAllowed} if $hash->{copyAllowed};
+    $output .= "\n";
     $output .= sprintf "In Media display, Parental %s: %s.\n", $hash->{guidanceMedia}, $hash->{guidanceMediaText};
     $output .= sprintf "In iPlate display, Parental %s: %s.\n", $hash->{guidanceIPlate}, $hash->{guidanceIPlateText};
     $output .= sprintf "Recorded from %s(%d): SID %d, TSID %d, ONID %d, PMT %d.\n", $hash->{channelName}, $hash->{channelNum}, 
                  $hash->{serviceID}, $hash->{transportStreamID}, $hash->{originatingNetworkID}, $hash->{programMapTable};
-    $output .= sprintf "Video: PID %d, %s, %s.\n", $hash->{videoPID}, $hash->{videoType}, $hash->{videoSDorHD};
-    $output .= sprintf "Audio: PID %d, %s.\n", $hash->{audioPID}, $hash->{audioType};
+    $output .= sprintf "Video: PID %d, Type %s, %s.\n", $hash->{videoPID}, $hash->{videoType}, $hash->{videoSDorHD};
+    $output .= sprintf "Audio: PID %d, Type %s.\n", $hash->{audioPID}, $hash->{audioType};
     $output .= sprintf "Schedule information: %s, %s (%d seconds), Event %d, %s: %s.\n", $hash->{programNameInGuide}, 
                 scalar localtime($hash->{schedStart}), $hash->{schedDuration}, $hash->{eventID}, $hash->{genreCode}, $hash->{synopsisText};
     $output .= sprintf "Unknown1(0x0716) = 0x%x, Unknown2(0x04AC) = 0x%x, Unknown3(0x04B0) = 0x%x, Unknown4(0x073A) = 0x%x.\n", $hash->{unknown1}, $hash->{unknown2}, $hash->{unknown3}, $hash->{unknown4};
