@@ -91,18 +91,49 @@ when it is on.
 
 3. FTP must be enabled on the Humax.
 
-## Notices
-Copyright (c) 2014 Graham R. Cobb.
+# hmt
+
+Decode content of a `.hmt` file.
+
+This is an open source re-implementation of Raydon's `hmt` program, to
+display the content of a .hmt file locally or on the Humax.
+
+## Usage
+```
+    hmt <file> | <url> ...
+
+```
+
+Note: the .hmt file can be specified using either a local filespec or a URL
+(for example `ftp://humaxftp:0000@humax/My Video/file.hmt`).
+
+## HMT data
+
+The original research for the meanings of the HMT data was done by raydon.
+Many thanks to raydon for publishing that research.
+
+I have made some small changes to raydon's analysis to make it work better
+on the .hmt files I encounter.  I do not know if these are mistakes by me,
+by raydon, different HMT layout versions or just the results of different
+data.  Feedback on errors in the HMT format or suggestions for the meanings
+of currently not understood fields are welcome.
+
+I would particularly like suggestions on why some strings (for example
+`Schedule information`) in some files are prefixed with the characters
+`i7` but in other files they are not.
+
+# Notices
+Copyright (c) 2014, 2015 Graham R. Cobb.
 This software is distributed under the GPL (see the copyright notices and the
 LICENSE file).
 
-`humax-unenc-ftp` is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+`humax-unenc-ftp` and `hmt` are free software; you can redistribute them
+and/or modify them under the terms of the GNU General Public License as
+published by the Free Software Foundation; either version 2 of the License,
+or (at your option) any later version.
 
-`humax-unenc-ftp` is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
+`humax-unenc-ftp` and `hmt` are distributed in the hope that they will be
+useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 

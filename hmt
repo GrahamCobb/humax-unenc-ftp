@@ -1,0 +1,359 @@
+#!/usr/bin/perl
+# Copyright (C) 2014, 2015 Graham R. Cobb
+# Released under GPL V2 -- see LICENSE
+
+# Note: the original research for the meanings of the HMT data was done by raydon.
+# Many thanks to raydon for publishing that research.
+
+use strict;
+use warnings;
+use Data::Dumper;
+use LWP::Simple ();
+
+#
+# Configuration data
+#
+my $ftpUser = "humaxftp";
+my $ftpPassword = "0000";
+my $verbosity = 2;
+my $man = 0;
+
+#
+# Logging
+#
+sub msgError
+{
+    print STDERR @_,"\n";
+}
+sub msgInfo
+{
+    print @_,"\n" if $verbosity >= 1;
+}
+sub msgProgress
+{
+    print @_,"\n" if $verbosity >= 2;
+}
+sub msgDebug
+{
+    print @_,"\n" if $verbosity >= 3;
+}
+
+# Here is the HMT layout
+# Mostly from raydon's published tables
+my @decodeTemplate = (
+    0, '%16v64', "mustBe0117",
+    0x0080, 'Z254', "filePath",
+    0x017F, 'C', "v1FileNameByte",
+    0x0180, 'Z*', "fileName",
+    0x0280, 'V', "recordingStart",
+    0x0284, 'V', "recordingEnd",
+    0x0288, 'V', "recordingLen",
+    0x028C, 'C', "recordingStatus",
+    0x028D, 'b8', "flags1",
+    0x028E, 'b8', "flags2",
+    0x028F, 'C', undef,
+    0x0290, 'V', "failureReason",
+    0x0294, 'V', "playedTime",
+    0x0298, 'v', "bookmarks",
+    0x029A, 'Z48', "programName",
+    0x031C, 'V', "bookmark1",
+    0x0320, 'V', "bookmark2",
+    0x0324, 'V', "bookmark3",
+    0x0328, 'V', "bookmark4",
+    0x032C, 'V', "bookmark5",
+    0x0330, 'V', "bookmark6",
+    0x0334, 'V', "bookmark7",
+    0x0338, 'V', "bookmark8",
+    0x033C, 'V', "bookmark9",
+    0x0340, 'V', "bookmark10",
+    0x0344, 'V', "bookmark11",
+    0x0348, 'V', "bookmark12",
+    0x034C, 'V', "bookmark13",
+    0x0350, 'V', "bookmark14",
+    0x0354, 'V', "bookmark15",
+    0x0358, 'V', "bookmark16",
+    0x035C, 'V', "bookmark17",
+    0x0360, 'V', "bookmark18",
+    0x0364, 'V', "bookmark19",
+    0x0368, 'V', "bookmark20",
+    0x036C, 'V', "bookmark21",
+    0x0370, 'V', "bookmark22",
+    0x0374, 'V', "bookmark23",
+    0x0378, 'V', "bookmark24",
+    0x037C, 'V', "bookmark25",
+    0x0380, 'V', "bookmark26",
+    0x0384, 'V', "bookmark27",
+    0x0388, 'V', "bookmark28",
+    0x038C, 'V', "bookmark29",
+    0x0390, 'V', "bookmark30",
+    0x0394, 'V', "bookmark31",
+    0x0398, 'V', "bookmark32",
+    0x039C, '%32L16', undef,
+    0x03DC, 'b8', "flags3",
+    0x03E0, 'v', "guidanceMedia",
+    0x03E2, 'C', "guidanceMediaHeader",
+    0x03E3, 'Z76', "guidanceMediaText", # != raydon
+    0x0431, 'C', "numCopiesAllowed",
+    0x0432, '%32V9', undef,
+    0x0458, 'V', "channelNum",
+    0x045C, 'C', "channelNameHeader",
+    0x045D, 'Z42', "channelName",
+    0x0488, 'v', "serviceID",
+    0x048A, 'v', "transportStreamID",
+    0x048C, 'v', "originatingNetworkID",
+    0x048E, 'v', "programMapTable",
+    0x0490, 'v', "videoPID",
+    0x0492, 'v', "mustBe2000",
+    0x0494, 'v', "videoPID2",
+    0x0496, 'v', undef,
+    0x0498, 'V', "videoType",
+    0x049C, 'v', "audioPID",
+    0x049E, 'v', undef,
+    0x04A0, 'V', "audioType",
+    0x04A4, 'V', "mustBe2000",
+    0x04A8, 'V', undef,
+    0x04AC, 'V', "unknown2", # != raydon
+    0x04B0, 'V', "unknown3", # != raydon
+    0x04B4, 'V', undef,
+    0x04B8, 'V', "mustBe1",
+    0x04BC, 'V', "videoSDorHD",
+    0x04C0, 'V', "mustBe1",
+    0x04C4, 'V', "mustBeFF",
+    0x04C8, '%32V12', undef,
+    0x04F8, 'V', "schedStart",
+    0x04FC, 'V', "schedDuration",
+    0x0500, 'v', "mustBe4", # != raydon
+    0x0502, '%16v9', undef,
+    0x0514, 'v', "genreCode",
+    0x0516, 'C', "programNameInGuideHeader",
+    0x0517, 'Z50', "programNameInGuide", # != raydon
+    0x0549, '%8C205', undef,
+    0x0616, 'C', "synopsisHeader",
+    0x0617, 'Z249', "synopsisText", # != raydon
+    0x0710, 'v', "eventID",
+    0x0712, 'V', undef,
+    0x0716, 'v', "unknown1", # != raydon
+    0x0718, '%16v17', undef,
+    0x073A, 'C', "unknown4", # != raydon
+    0x073B, 'v', "guidanceIPlate",
+    0x073D, 'V', undef, # != raydon
+    0x0741, 'C', "guidanceIPlateHeader",
+    0x0742, 'Z74', "guidanceIPlateText",
+    0x078C, '%16v6', undef,
+    0x0798, 'A798', "dataBlock",
+    );
+
+my %bitfields = (
+    flags1 => [
+	undef, undef, "locked", "notNew", undef, undef, undef, undef
+    ],
+    flags2 => [
+	"onDiskEncrypted", "thumbnail", "recordingFailed", "autoDeleted", undef, undef, undef, undef
+    ],
+    flags3 => [
+	undef, "keepEncrypted", "copyAllowed", undef, undef, undef, undef, undef
+	],
+    );
+
+my %enums = (
+    recordingStatus => {
+	0 => "Zero length",
+	1 => "Loss of power",
+	2 => "Valid",
+	3 => "Scrambled",
+	4 => "Failed",
+	5 => "Loss of power?",
+	6 => "Loss of power?",
+	7 => "Loss of power?",
+	8 => "Loss of power?",
+    },
+    failureReason => {
+	0 => "OK",
+	1 => "Disk was full",
+	2 => "Conflicted with another recording",
+	3 => "Maximum number of files per folder",
+	4 => "Recording less than 30 seconds",
+    },
+    guidanceMedia => {
+	0x00ff => "Guidance off",
+	#0x0101 => "Guide on",
+	0xff00 => "Guidance on", # != raydon
+    },
+    videoType => {
+	1 => "MPEG2",
+	2 => "H264",
+    },
+    audioType => {
+	1 => "MPEG",
+	3 => "AC3",
+	7 => "AAC",
+    },
+    videoSDorHD => {
+	1 => "SD",
+	2 => "HD",
+    },
+    genreCode => {
+	0x00 => "Unclassified",
+	0x10 => "Movie",
+	0x20 => "News and Factual",
+	0x30 => "Entertainment",
+	0x40 => "Sport",
+	0x50 => "Childrens",
+	0x60 => "Education",
+	0xA0 => "Lifestyle",
+	0xF0 => "Drama",
+    },
+    ac3Flag => {
+	0x00 => "not AC3 or AAC",
+	0x01 => "AC3 or AAC",
+    },
+    guidanceIPlate => {
+	0x00ff => "Guidance off",
+	#0x0101 => "Guide on",
+	0xff00 => "Guidance on", # != raydon
+    },
+    );
+
+my %mustBe = ( # Numeric only
+	       mustBe0117 => 0x0117,
+	       mustBe2000 => 0x2000,
+	       mustBe1 => 0x1,
+	       mustBeFF => 0xFF,
+	       mustBe4 => 0x4,
+    );
+
+sub hmtDecode {
+    my ($hmt, $hash) = @_;
+    if (!$hash) {$hash = {};}
+
+    my @templateTriples = @decodeTemplate;
+    my $offset;
+    my $templ;
+    my $field;
+
+    for (($offset, $templ, $field, @templateTriples) = @templateTriples; $templ;  ($offset, $templ, $field, @templateTriples) = @templateTriples) {
+	my $value = unpack('@!'.$offset.$templ, $hmt);
+	
+	$hash->{$field} = $value if $field;
+
+	# Undef fields must be zero
+	if ((!$field) && $value != 0) {
+	    msgError sprintf "Field 0x%x should be 0 but is 0x%x", $offset, $value;
+	    next;
+	}
+
+	# Bitfields
+	if ($field && $bitfields{$field}) {
+	    my @bits = split( //, $value);
+	    for (my $i = 0; $i < @{$bitfields{$field}}; $i++) {
+		my $bitName = ${$bitfields{$field}}[$i];
+		my $bitValue = $bits[$i];
+		
+		$hash->{$bitName} = $bitValue if $bitName;
+		
+		if ((!$bitName) && $bitValue != 0) {
+		    msgError sprintf "Bit %i in field %s(0x%x) should be 0 but is 1", $i, $field, $offset;
+		}
+	    }
+	}
+
+	# Enums
+	if ($field && $enums{$field}) {
+	    if ($enums{$field}->{$value}) {
+		$hash->{$field} = $enums{$field}->{$value};
+	    } else {
+		msgError sprintf "Unrecognised enumeration value 0x%x in field %s(0x%x)", $value, $field, $offset;
+	    }
+	}
+
+	# Must Be
+	if ($field && $mustBe{$field}) {
+	    msgError sprintf "Field %s(0x%x) should be 0x%x but is 0x%x", $field, $offset, $mustBe{$field}, $value if $mustBe{$field} != $value;
+	}
+    }
+
+    # Special processing...
+
+    # V1 files have the first byte of the filename @0x017F, V2 have it @0x0180
+    $hash->{v1} = ($hash->{v1FileNameByte} != 0);
+    $hash->{fileName} = $hash->{v1FileNameByte} . $hash->{fileName} if $hash->{v1};
+
+    # Video PID appears twice, check they are the same
+    msgError sprintf "Field videoPID(0x0490) = %d, videoPID2(0x0494) = %d -- they should be the same", $hash->{videoPID}, $hash->{videoPID2} if $hash->{videoPID} != $hash->{videoPID2};
+
+    # Audio type appears twice, check they agree
+#    msgError sprintf "Field audioType(0x04A0) = %s, ac3Flag(0x073A) = %s -- these are inconsistent", $hash->{audioType}, $hash->{ac3Flag}
+#        if ( ($hash->{ac3Flag} eq "AC3 or AAC" && $hash->{audioType} ne "AC3" && $hash->{audioType} ne "AAC")
+#	     || ($hash->{ac3Flag} ne "AC3 or AAC" && ($hash->{audioType} eq "AC3" || $hash->{audioType} eq "AAC")) );
+
+    # eng
+    #msgError sprintf "Field mustBeENG(0x073D) = %s but should be 'eng'", $hash->{mustBeENG} if $hash->{mustBeENG} ne "eng";
+
+    # Data block
+    $hash->{dataBlockUU} = pack "u", $hash->{dataBlock};
+    msgError sprintf "Data block (0x0798) is not correct: %s", $hash->{dataBlockUU} if $hash->{dataBlockUU} ne <<'EOT';
+M4/YGS)EM,K;:"3?IFZ_L8-FDVMH(DB.?:XL]=H#A5G2GB!E8/P,(YZ:_-K$X
+M:K\CQM-!;2D67&_+CE&B)[J93M?7I3F^/86O-\5B%/SL$&X#,I+8^BWG*VC^
+FT"["Z+J._1;)?<^2WG&Z<?G@RU*C^9[_CLT)6<3Q)W$/2*N;"S``
+EOT
+
+    return $hash;
+}
+
+sub hmtFormat {
+    my ($hash) = @_;
+    my $output = "";
+
+    $output .= sprintf "HMT file for %s in folder %s.\n", $hash->{fileName}, $hash->{filePath};
+    $output .= sprintf "%s recorded %s - %s (%d seconds). Status: %s\n", $hash->{programName}, 
+                scalar localtime($hash->{recordingStart}), scalar localtime($hash->{recordingEnd}), $hash->{recordingLen}, $hash->{recordingStatus};
+    $output .= "Recording is locked. " if $hash->{locked};
+    $output .= "Recording is new. " unless $hash->{notNew};
+    $output .= "Recording is encrypted on disk. " if $hash->{onDiskEncrypted};
+    $output .= "Recording has thumbnail. " if $hash->{thumbnail};
+    $output .= sprintf "Recording failed: %s. ", $hash->{failureReason} if $hash->{recordingFailed};
+    $output .= "Recording has been automatically deleted. " if $hash->{autoDeleted};
+    $output .= "Recording must be kept encrypted. " if $hash->{keepEncrypted};
+    $output .= sprintf "Recording may be copied %d times. ", $hash->{numCopiesAllowed} if $hash->{copyAllowed};
+    $output .= "\n";
+    $output .= sprintf "Playback was suspended after %d seconds.\n", $hash->{playedTime} if $hash->{playedTime};
+    if ($hash->{bookmarks} > 0) {
+	msgDebug "$hash->{bookmarks}";
+	for (my $i=1; $i <= $hash->{bookmarks}; $i++) {
+	    $output .= sprintf "%d ", $hash->{"bookmark$i"};
+	}
+	$output .= "\n";
+    }
+    $output .= sprintf "In Media display, Parental %s: %s.\n", $hash->{guidanceMedia}, $hash->{guidanceMediaText};
+    $output .= sprintf "In iPlate display, Parental %s: %s.\n", $hash->{guidanceIPlate}, $hash->{guidanceIPlateText};
+    $output .= sprintf "Recorded from %s(%d): SID %d, TSID %d, ONID %d, PMT %d.\n", $hash->{channelName}, $hash->{channelNum}, 
+                 $hash->{serviceID}, $hash->{transportStreamID}, $hash->{originatingNetworkID}, $hash->{programMapTable};
+    $output .= sprintf "Video: PID %d, %s, %s.\n", $hash->{videoPID}, $hash->{videoType}, $hash->{videoSDorHD};
+    $output .= sprintf "Audio: PID %d, %s.\n", $hash->{audioPID}, $hash->{audioType};
+    $output .= sprintf "Schedule information: %s, %s (%d seconds), Event %d, %s: %s.\n", $hash->{programNameInGuide}, 
+                scalar localtime($hash->{schedStart}), $hash->{schedDuration}, $hash->{eventID}, $hash->{genreCode}, $hash->{synopsisText};
+    $output .= sprintf "Unknown1(0x0716) = 0x%x, Unknown2(0x04AC) = 0x%x, Unknown3(0x04B0) = 0x%x, Unknown4(0x073A) = 0x%x.\n", $hash->{unknown1}, $hash->{unknown2}, $hash->{unknown3}, $hash->{unknown4};
+    
+    return $output;
+}
+
+# Read a local file
+sub getLocal {
+    my ($file) = @_;
+    $/ = undef;
+    open(HMTFILE, $file) or return undef;
+    binmode(HMTFILE);
+    my $contents = <HMTFILE>;
+    close HMTFILE;
+    return $contents;
+}
+
+# Display each .hmt file in turn
+foreach my $file (@ARGV) {
+    my $hmt = getLocal($file) // LWP::Simple::get($file) // die "Could not read file/URL $file: $!";
+    msgDebug length($hmt)." bytes read\n";
+
+    my $hmtHash = hmtDecode($hmt);
+    msgDebug Dumper $hmtHash;
+    msgInfo hmtFormat $hmtHash;
+}
