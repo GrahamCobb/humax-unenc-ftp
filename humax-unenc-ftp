@@ -191,9 +191,11 @@ sub walkFtpTree {
 sub handleHmt {
     my ($dir, $file) = @_;
     my $hmt;
+    use constant MAGIC_OFFSET => 0;
+    use constant MAGIC_VALUE => 0x0117;
+    use constant REC_END_OFFSET => 0x284;
     use constant ENC_OFFSET => 0x3dc;
     use constant ENC_FLAG => 0x04;
-    use constant REC_END_OFFSET => 0x284;
 
     $ftp->cwd("$dir")
 	or die "Cannot change working directory to $dir: ", $ftp->message;
@@ -204,6 +206,14 @@ sub handleHmt {
 	or die "Cannot select binary mode: ", $ftp->message;
     $ftp->get("$file", $fh)
 	or die "Cannot fetch .hmt file: ", $ftp->message;
+
+    # Check magic number is correct for valid HMT file
+    my $magic = unpack("@".MAGIC_OFFSET."v", $hmt);
+    if ($magic != MAGIC_VALUE) {
+	close $fh;
+	msgInfo sprintf "Skipping invalid HMT $dir/$file as magic number 0x%x (0x%x) not equal to 0x%x", $magic, MAGIC_OFFSET, MAGIC_VALUE;
+	return;
+    }
 
     # Do not manipulate while recording is in progress or finished less than 1 minute ago
     my $rec_end_time = unpack("@".REC_END_OFFSET."V", $hmt);
