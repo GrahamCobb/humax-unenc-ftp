@@ -230,11 +230,16 @@ my %mustBe = ( # Numeric only
 sub skipHeader {
     my ($hdr, $string) = @_;
 
-    # Full header parsing is not understood.
-    # However, if the header is 0x10, the first two bytes of 
-    # the string are the code page number and should be discarded
+    # Skip character encoding header as defined in ETSI EN 300 468 Annex A.2
+    # Note: no attempt is made to actually act on the encoding
 
+    # If the header is printable, it is actually the first character of the string
+    return chr($hdr) . $string if $hdr >= 0x20;
+    # If the header is 0x1f, the next byte is an encoding number
+    return substr $string, 1 if $hdr == 0x1f;
+    # If the header is 0x10, the next two bytes are a code page number
     return substr $string, 2 if $hdr == 0x10;
+    # Otherwise, the header byte itself identifies the encoding
     return $string;
 }
 
