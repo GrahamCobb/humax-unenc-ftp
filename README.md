@@ -99,7 +99,7 @@ when it is on.
 
 Decode content of a `.hmt` file.
 
-This is an open source re-implementation of Raydon's `hmt` program, to
+This is an open source re-implementation of af123's `hmt` program, to
 display the content of a .hmt file locally or on the Humax. Although
 created for HDR-2000T users, I believe it should also work with other
 models.
@@ -123,10 +123,6 @@ on the .hmt files I encounter.  I do not know if these are mistakes by me,
 by raydon, different HMT layout versions or just the results of different
 data.  Feedback on errors in the HMT format or suggestions for the meanings
 of currently not understood fields are welcome.
-
-I would particularly like suggestions on why some strings (for example
-`Schedule information`) in some files are prefixed with the characters
-`i7` but in other files they are not.
 
 My latest understanding of the formats can be found in my Github [Gist](https://gist.github.com/GrahamCobb/0e8c854eb75e5b00f353).
 
