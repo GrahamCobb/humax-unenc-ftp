@@ -138,7 +138,8 @@ my @decodeTemplate = (
     0x0718, '%16v17', undef,
     0x073A, 'C', "unknown4", # != raydon
     0x073B, 'v', "guidanceIPlate",
-    0x073D, 'V', undef, # != raydon
+    0x073D, 'Z3', "guidanceIPlateLanguage",
+    0x0740, 'C', undef,
     0x0741, 'C', "guidanceIPlateHeader",
     0x0742, 'Z74', "guidanceIPlateText",
     0x078C, '%16v6', undef,
@@ -364,7 +365,7 @@ sub hmtFormat {
     $output .= sprintf "Content may be copied %d times. ", $hash->{numCopiesAllowed} if $hash->{copyAllowed};
     $output .= "\n";
     $output .= sprintf "In Media display, Parental %s: %s.\n", $hash->{guidanceMedia}, $hash->{guidanceMediaText};
-    $output .= sprintf "In iPlate display, Parental %s: %s.\n", $hash->{guidanceIPlate}, $hash->{guidanceIPlateText};
+    $output .= sprintf "In iPlate display, Parental %s: [%s]%s.\n", $hash->{guidanceIPlate}, $hash->{guidanceIPlateLanguage}, $hash->{guidanceIPlateText};
     $output .= sprintf "Recorded from %s(%d): SID %d, TSID %d, ONID %d, PMT %d.\n", $hash->{channelName}, $hash->{channelNum}, 
                  $hash->{serviceID}, $hash->{transportStreamID}, $hash->{originatingNetworkID}, $hash->{programMapTable};
     $output .= sprintf "Video: PID %d, Type %s, %s.\n", $hash->{videoPID}, $hash->{videoType}, $hash->{videoSDorHD};

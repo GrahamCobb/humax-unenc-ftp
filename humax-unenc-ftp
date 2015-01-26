@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2014 Graham R. Cobb
+# Copyright (C) 2014, 2015 Graham R. Cobb
 # Released under GPL V2 -- see LICENSE
 
 use strict;
