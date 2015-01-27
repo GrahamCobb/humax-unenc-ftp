@@ -203,8 +203,10 @@ my %enums = (
 	0x30 => "Entertainment",
 	0x40 => "Sport",
 	0x50 => "Childrens",
-	0x60 => "Education",
-	0x80 => "Documentary", # Displays on the Humax as News and Factual (!= raydon)
+	0x60 => "Entertainment",
+	0x70 => "News and Factual",
+	0x80 => "News and Factual",
+	0x90 => "Education",
 	0xA0 => "Lifestyle",
 	0xF0 => "Drama",
     },
