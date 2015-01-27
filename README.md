@@ -36,8 +36,7 @@ and then refuses to serve them over DLNA or copy them to USB disks.
       -v, --verbose[=N]     Increment or set verbosity level (0 - quiet, 1 - info, 2 - progress, 3 - debug, 4 - debug FTP)
 ```
 
-The default directory is currently "My Video/Test", although it will change in
-a future release.
+The default directory is "My Video" so all video files are processed.
 
 ## Detailed operation
 

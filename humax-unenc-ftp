@@ -70,7 +70,7 @@ if (! $host) {
     pod2usage(2);
 };
 
-$toplevel[0] = "My Video/Test" unless @toplevel;
+$toplevel[0] = "My Video" unless @toplevel;
 
 my $debugFTP = $verbosity > 3;
 
