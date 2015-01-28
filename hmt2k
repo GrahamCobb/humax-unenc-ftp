@@ -132,9 +132,9 @@ my @decodeTemplate = (
     0x0549, '%8C205', undef,
     0x0616, 'C', "synopsisHeader",
     0x0617, 'Z249', "synopsisText", # != raydon
-    0x0710, 'v', "eventID",
+    0x0710, 'v', undef,
     0x0712, 'V', undef,
-    0x0716, 'v', "unknown1", # != raydon
+    0x0716, 'v', "eventID", # != raydon
     0x0718, '%16v17', undef,
     0x073A, 'C', "unknown4", # != raydon
     0x073B, 'v', "guidanceIPlate",
@@ -374,7 +374,7 @@ sub hmtFormat {
     $output .= sprintf "Audio: PID %d, Type %s.\n", $hash->{audioPID}, $hash->{audioType};
     $output .= sprintf "Schedule information: %s, %s (%d seconds), Event %d, %s: %s.\n", $hash->{programNameInGuide}, 
                 scalar localtime($hash->{schedStart}), $hash->{schedDuration}, $hash->{eventID}, $hash->{genreCode}, $hash->{synopsisText};
-    $output .= sprintf "Unknown1(0x0716) = 0x%x, Unknown2(0x04AC) = 0x%x, Unknown3(0x04B0) = 0x%x, Unknown4(0x073A) = 0x%x.\n", $hash->{unknown1}, $hash->{unknown2}, $hash->{unknown3}, $hash->{unknown4};
+    $output .= sprintf "Unknown2(0x04AC) = 0x%x, Unknown3(0x04B0) = 0x%x, Unknown4(0x073A) = 0x%x.\n", $hash->{unknown2}, $hash->{unknown3}, $hash->{unknown4};
     
     return $output;
 }
