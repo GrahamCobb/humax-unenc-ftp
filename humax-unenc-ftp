@@ -44,6 +44,8 @@ sub msgDebug
 {
     print @_,"\n" if $verbosity >= 3;
 }
+# Autoflush output, otherwise errors appear in wrong place relative to logging
+$| = 1;
 
 #
 # Option processing
