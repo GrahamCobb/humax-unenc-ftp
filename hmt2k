@@ -9,6 +9,7 @@ use strict;
 use warnings;
 use Data::Dumper;
 use LWP::Simple ();
+use bytes;
 
 #
 # Configuration data
@@ -265,6 +266,12 @@ sub hmtDecode {
     my $field;
 
     for (($offset, $templ, $field, @templateTriples) = @templateTriples; $templ;  ($offset, $templ, $field, @templateTriples) = @templateTriples) {
+	# Check bounds
+	if  ($offset > bytes::length($hmt)) {
+	    msgError sprintf "Field 0x%x is beyond the end of the file (0x%x) - is the file really an hmt?", $offset, bytes::length($hmt);
+	    last;
+	}
+	    
 	my $value = unpack('@!'.$offset.$templ, $hmt);
 	
 	$hash->{$field} = $value if $field;
@@ -308,40 +315,50 @@ sub hmtDecode {
     # Special processing...
 
     # V1 files have the first byte of the filename @0x017F, V2 have it @0x0180
-    $hash->{v1} = ($hash->{v1FileNameByte} != 0);
+    $hash->{v1} = ($hash->{v1FileNameByte} != 0) if exists ($hash->{v1FileNameByte});
     $hash->{fileName} = $hash->{v1FileNameByte} . $hash->{fileName} if $hash->{v1};
 
     # Fixup string headers
-    $hash->{guidanceMediaText} = skipHeader($hash->{guidanceMediaHeader}, $hash->{guidanceMediaText});
-    $hash->{channelName} = skipHeader($hash->{channelNameHeader}, $hash->{channelName});
-    $hash->{programNameInGuide} = skipHeader($hash->{programNameInGuideHeader}, $hash->{programNameInGuide});
-    $hash->{synopsisText} = skipHeader($hash->{synopsisHeader}, $hash->{synopsisText});
-    $hash->{guidanceIPlateText} = skipHeader($hash->{guidanceIPlateHeader}, $hash->{guidanceIPlateText});
+    $hash->{guidanceMediaText} = skipHeader($hash->{guidanceMediaHeader}, $hash->{guidanceMediaText}) if exists($hash->{guidanceMediaHeader}) && exists($hash->{guidanceMediaText});
+    $hash->{channelName} = skipHeader($hash->{channelNameHeader}, $hash->{channelName}) if exists($hash->{channelNameHeader}) && exists($hash->{channelName});
+    $hash->{programNameInGuide} = skipHeader($hash->{programNameInGuideHeader}, $hash->{programNameInGuide}) if exists($hash->{programNameInGuideHeader}) && exists($hash->{programNameInGuide});
+    $hash->{synopsisText} = skipHeader($hash->{synopsisHeader}, $hash->{synopsisText}) if exists($hash->{synopsisHeader}) && exists($hash->{synopsisText});
+    $hash->{guidanceIPlateText} = skipHeader($hash->{guidanceIPlateHeader}, $hash->{guidanceIPlateText}) if exists($hash->{guidanceIPlateHeader}) && exists($hash->{guidanceIPlateText});
 
     # Checks...
 
     # Check recordingFailed flag consistent with failureReason
-    msgError sprintf "Flag recordingFailed(0x028E/0x04) = %d, field failureReason(0x0290) = %s -- these are inconsistent", $hash->{recordingFailed}, $hash->{failureReason}
-      if ($hash->{recordingFailed} && $hash->{failureReason} eq "OK") || ($hash->{failureReason} ne "OK" && !$hash->{recordingFailed});
+    if (exists($hash->{recordingFailed}) && exists($hash->{failureReason})) {
+	msgError sprintf "Flag recordingFailed(0x028E/0x04) = %d, field failureReason(0x0290) = %s -- these are inconsistent", $hash->{recordingFailed}, $hash->{failureReason}
+	 if ($hash->{recordingFailed} && $hash->{failureReason} eq "OK") || ($hash->{failureReason} ne "OK" && !$hash->{recordingFailed});
+	}
 
     # Video PID appears twice, check they are the same
-    msgError sprintf "Field videoPID(0x0490) = %d, videoPID2(0x0494) = %d -- they should be the same", $hash->{videoPID}, $hash->{videoPID2} if $hash->{videoPID} != $hash->{videoPID2};
+    if (exists($hash->{videoPID}) && exists($hash->{videoPID2})) {
+	msgError sprintf "Field videoPID(0x0490) = %d, videoPID2(0x0494) = %d -- they should be the same", $hash->{videoPID}, $hash->{videoPID2} if $hash->{videoPID} != $hash->{videoPID2};
+	}
 
     # Audio type appears twice, check they agree
-#    msgError sprintf "Field audioType(0x04A0) = %s, ac3Flag(0x073A) = %s -- these are inconsistent", $hash->{audioType}, $hash->{ac3Flag}
-#        if ( ($hash->{ac3Flag} eq "AC3 or AAC" && $hash->{audioType} ne "AC3" && $hash->{audioType} ne "AAC")
+#    if (exists($hash->{audioType}) && exists($hash->{ac3Flag})) {
+#	msgError sprintf "Field audioType(0x04A0) = %s, ac3Flag(0x073A) = %s -- these are inconsistent", $hash->{audioType}, $hash->{ac3Flag}
+#         if ( ($hash->{ac3Flag} eq "AC3 or AAC" && $hash->{audioType} ne "AC3" && $hash->{audioType} ne "AAC")
 #	     || ($hash->{ac3Flag} ne "AC3 or AAC" && ($hash->{audioType} eq "AC3" || $hash->{audioType} eq "AAC")) );
+#    }
 
     # eng
-    #msgError sprintf "Field mustBeENG(0x073D) = %s but should be 'eng'", $hash->{mustBeENG} if $hash->{mustBeENG} ne "eng";
+#    if (exists($hash->{mustBeENG})) {
+#	msgError sprintf "Field mustBeENG(0x073D) = %s but should be 'eng'", $hash->{mustBeENG} if $hash->{mustBeENG} ne "eng";
+#    }
 
     # Data block
-    $hash->{dataBlockUU} = pack "u", $hash->{dataBlock};
-    msgError sprintf "Data block (0x0798) is not correct: %s", $hash->{dataBlockUU} if $hash->{dataBlockUU} ne <<'EOT';
+    if (exists($hash->{dataBlock})) {
+	$hash->{dataBlockUU} = pack "u", $hash->{dataBlock};
+	msgError sprintf "Data block (0x0798) is not correct: %s", $hash->{dataBlockUU} if $hash->{dataBlockUU} ne <<'EOT';
 M4/YGS)EM,K;:"3?IFZ_L8-FDVMH(DB.?:XL]=H#A5G2GB!E8/P,(YZ:_-K$X
 M:K\CQM-!;2D67&_+CE&B)[J93M?7I3F^/86O-\5B%/SL$&X#,I+8^BWG*VC^
 FT"["Z+J._1;)?<^2WG&Z<?G@RU*C^9[_CLT)6<3Q)W$/2*N;"S``
 EOT
+    }
 
     return $hash;
 }
@@ -351,9 +368,10 @@ sub hmtFormat {
     my $output = "";
 
     $output .= "Information about the recording...\n";
-    $output .= sprintf "HMT file for %s in folder %s.\n", $hash->{fileName}, $hash->{filePath};
+    $output .= sprintf "HMT file for %s in folder %s.\n", $hash->{fileName}, $hash->{filePath} if exists($hash->{fileName}) && exists($hash->{filePath});
     $output .= sprintf "%s recorded %s - %s (%d seconds). Status: %s\n", $hash->{programName}, 
-                scalar localtime($hash->{recordingStart}), scalar localtime($hash->{recordingEnd}), $hash->{recordingLen}, $hash->{recordingStatus};
+                scalar localtime($hash->{recordingStart}), scalar localtime($hash->{recordingEnd}), $hash->{recordingLen}, $hash->{recordingStatus}
+    			if exists($hash->{programName}) && exists($hash->{recordingStart}) && exists($hash->{recordingEnd}) && exists($hash->{recordingLen}) && exists($hash->{recordingStatus});
     $output .= "Recording is locked. " if $hash->{locked};
     $output .= "Recording is new. " unless $hash->{notNew};
     $output .= "Recording has been viewed. " if $hash->{notNew};
@@ -363,10 +381,10 @@ sub hmtFormat {
     $output .= "Recording has been automatically deleted. " if $hash->{autoDeleted};
     $output .= "\n";
     $output .= sprintf "Playback was suspended after %d seconds.\n", $hash->{playedTime} if $hash->{playedTime};
-    if ($hash->{bookmarks} > 0) {
+    if (exists($hash->{bookmarks}) && $hash->{bookmarks} > 0) {
 	msgDebug "$hash->{bookmarks}";
 	for (my $i=1; $i <= $hash->{bookmarks}; $i++) {
-	    $output .= sprintf "%d ", $hash->{"bookmark$i"};
+	    $output .= sprintf "%d ", $hash->{"bookmark$i"} if exists($hash->{"bookmark$i"});
 	}
 	$output .= "\n";
     }
@@ -375,15 +393,20 @@ sub hmtFormat {
     $output .= "Content may not be copied." unless $hash->{copyAllowed};
     $output .= sprintf "Content may be copied %d times. ", $hash->{numCopiesAllowed} if $hash->{copyAllowed};
     $output .= "\n";
-    $output .= sprintf "In Media display, Parental %s: %s.\n", $hash->{guidanceMedia}, $hash->{guidanceMediaText};
-    $output .= sprintf "In iPlate display, Parental %s: [%s]%s.\n", $hash->{guidanceIPlate}, $hash->{guidanceIPlateLanguage}, $hash->{guidanceIPlateText};
+    $output .= sprintf "In Media display, Parental %s: %s.\n", $hash->{guidanceMedia}, $hash->{guidanceMediaText} if exists($hash->{guidanceMedia}) && exists($hash->{guidanceMediaText});
+    $output .= sprintf "In iPlate display, Parental %s: [%s]%s.\n", $hash->{guidanceIPlate}, $hash->{guidanceIPlateLanguage}, $hash->{guidanceIPlateText} 
+    		if exists($hash->{guidanceIPlate}) && exists($hash->{guidanceIPlateLanguage}) && exists($hash->{guidanceIPlateText});
     $output .= sprintf "Recorded from %s(%d): SID %d, TSID %d, ONID %d, PMT %d.\n", $hash->{channelName}, $hash->{channelNum}, 
-                 $hash->{serviceID}, $hash->{transportStreamID}, $hash->{originatingNetworkID}, $hash->{programMapTable};
-    $output .= sprintf "Video: PID %d, Type %s, %s.\n", $hash->{videoPID}, $hash->{videoType}, $hash->{videoSDorHD};
-    $output .= sprintf "Audio: PID %d, Type %s.\n", $hash->{audioPID}, $hash->{audioType};
+                 $hash->{serviceID}, $hash->{transportStreamID}, $hash->{originatingNetworkID}, $hash->{programMapTable}
+    		if exists($hash->{channelName}) && exists($hash->{channelNum}) && exists($hash->{serviceID}) && exists($hash->{transportStreamID}) && exists($hash->{originatingNetworkID}) && exists($hash->{programMapTable});
+    $output .= sprintf "Video: PID %d, Type %s, %s.\n", $hash->{videoPID}, $hash->{videoType}, $hash->{videoSDorHD}
+    		if exists($hash->{videoPID}) && exists($hash->{videoType}) && exists($hash->{videoSDorHD});
+    $output .= sprintf "Audio: PID %d, Type %s.\n", $hash->{audioPID}, $hash->{audioType} if exists($hash->{audioPID}) && exists($hash->{audioType});
     $output .= sprintf "Schedule information: %s, %s (%d seconds), Event %d, %s: %s.\n", $hash->{programNameInGuide}, 
-                scalar localtime($hash->{schedStart}), $hash->{schedDuration}, $hash->{eventID}, $hash->{genreCode}, $hash->{synopsisText};
-    $output .= sprintf "Unknown2(0x04AC) = 0x%x, Unknown3(0x04B0) = 0x%x, Unknown4(0x073A) = 0x%x.\n", $hash->{unknown2}, $hash->{unknown3}, $hash->{unknown4};
+                scalar localtime($hash->{schedStart}), $hash->{schedDuration}, $hash->{eventID}, $hash->{genreCode}, $hash->{synopsisText}
+    		  if exists($hash->{programNameInGuide}) && exists($hash->{schedStart}) && exists($hash->{schedDuration}) && exists($hash->{eventID}) && exists($hash->{genreCode}) && exists($hash->{synopsisText});
+    $output .= sprintf "Unknown2(0x04AC) = 0x%x, Unknown3(0x04B0) = 0x%x, Unknown4(0x073A) = 0x%x.\n", $hash->{unknown2}, $hash->{unknown3}, $hash->{unknown4}
+    		if exists($hash->{unknown2}) && exists($hash->{unknown3}) && exists($hash->{unknown4});
     
     return $output;
 }
@@ -404,6 +427,7 @@ foreach my $file (@ARGV) {
     my $hmt = getLocal($file) // LWP::Simple::get($file) // die "Could not read file/URL $file: $!";
     msgDebug length($hmt)." bytes read\n";
 
+    msgProgress "File: $file";
     my $hmtHash = hmtDecode($hmt);
     msgDebug Dumper $hmtHash;
     msgInfo hmtFormat $hmtHash;
