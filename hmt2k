@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2014, 2015 Graham R. Cobb
+# Copyright (C) 2014, 2015, 2016 Graham R. Cobb
 # Released under GPL V2 -- see LICENSE
 
 # Note: the original research for the meanings of the HMT data was done by raydon.
@@ -331,12 +331,17 @@ sub hmtDecode {
     if (exists($hash->{recordingFailed}) && exists($hash->{failureReason})) {
 	msgError sprintf "Flag recordingFailed(0x028E/0x04) = %d, field failureReason(0x0290) = %s -- these are inconsistent", $hash->{recordingFailed}, $hash->{failureReason}
 	 if ($hash->{recordingFailed} && $hash->{failureReason} eq "OK") || ($hash->{failureReason} ne "OK" && !$hash->{recordingFailed});
-	}
+    }
+
+    # No more than 32 bookmarks
+    if (exists($hash->{bookmarks}) && ($hash->{bookmarks} > 32)) {
+	msgError sprintf "Field bookmarks(0x0298) = %d -- greater than 32", $hash->{bookmarks};
+    }
 
     # Video PID appears twice, check they are the same
     if (exists($hash->{videoPID}) && exists($hash->{videoPID2})) {
 	msgError sprintf "Field videoPID(0x0490) = %d, videoPID2(0x0494) = %d -- they should be the same", $hash->{videoPID}, $hash->{videoPID2} if $hash->{videoPID} != $hash->{videoPID2};
-	}
+    }
 
     # Audio type appears twice, check they agree
 #    if (exists($hash->{audioType}) && exists($hash->{ac3Flag})) {
